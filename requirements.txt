@@ -18,4 +18,5 @@ wandb==0.15.4
 lightning_utilities==0.9.0
 umap_learn==0.5.4
 plotly
+comet_ml
 --extra-index-url https://download.pytorch.org/whl/cu116
