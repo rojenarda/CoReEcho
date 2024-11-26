@@ -56,7 +56,7 @@ def validate(val_loader, model, regressor, n_clips_per_sample=1):
         for key in dict_list_aux.keys():
             dict_list_aux[key] = [element for innerList in dict_list_aux[key] for element in innerList]
         
-        if metrics['r2'] >= best_r2:
+        if metrics['r2'] >= best_r2 or best_r2 == - np.Inf:
             best_r2 = copy.deepcopy(metrics['r2'])
             flabels = copy.deepcopy(labels)
             fembeddings = copy.deepcopy(embeddings)
