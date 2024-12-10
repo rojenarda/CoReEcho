@@ -1,55 +1,17 @@
-import argparse
+import os
 import copy
-import pandas as pd
 import torch
 import pickle
+import pandas as pd
 
 from torcheval.metrics.functional import r2_score
 
-from coreecho import get_feature_extractor
 from coreecho.dataset import EchoNetTest
-from coreecho.regressor import get_shallow_mlp_head
-from coreecho.utils import load_model
 from coreecho.validation import validate
 
-def parse_option():
-    parser = argparse.ArgumentParser('argument for training')
-    
-    parser.add_argument('--data_folder', type=str, default='./data', help='path to custom dataset')
-    parser.add_argument('--pretrained_weights', type=str, default=None)
-    parser.add_argument('--path_test_start_indexes', type=str)
-    parser.add_argument('--path_save_test_files', type=str)
-    
-    parser.add_argument('--model', type=str, default='uniformer_small', choices=['uniformer_small'])
-    
-    parser.add_argument('--frames', type=int)
-    parser.add_argument('--frequency', type=int)
-    parser.add_argument('--num_workers', type=int, default=4, help='num of workers to use')
-    
-    opt = parser.parse_args()
-    
-    return opt
+from comet_ml import Experiment
 
-def set_model(opt):
-    model = get_feature_extractor(opt.model, None)
-    if opt.model == 'uniformer_small':
-        dim_in = model.head.in_features
-    else:
-        dim_in = model.fc.in_features
-    dim_out = 1
-    
-    regressor = get_shallow_mlp_head(dim_in, dim_out)
-    
-    checkpoint = torch.load(opt.pretrained_weights, map_location='cpu')
-    model = load_model(model, checkpoint['model'])
-    regressor = load_model(regressor, checkpoint['regressor'])
-    
-    if torch.cuda.is_available():
-        model = model.cuda()
-        regressor = regressor.cuda()
-        torch.backends.cudnn.benchmark = True
-    
-    return model, regressor
+from .utils import parse_option, set_model
 
 def set_test_loader(opt):
     test_ds = EchoNetTest(
@@ -66,14 +28,26 @@ def set_test_loader(opt):
     
     return test_loader
 
-if __name__ == '__main__':
-    opt = parse_option()
-    
-    model, regressor = set_model(opt)
-    
+def main(custom_args: dict = None):
+    opt = parse_option(custom_args, stage=3)
+
+    if not os.path.exists(opt.path_save_test_files):
+        os.makedirs(opt.path_save_test_files)
+
+    experiment = Experiment(
+        api_key=opt.comet_api_key,
+        project_name=opt.project_name,
+    )
+
+    # Set experiment parameters
+    experiment.set_name(opt.model_name)
+    experiment.log_parameters(vars(opt))
+
+    model, regressor = set_model(opt, stage=3)
+
     df = pd.read_pickle(opt.path_test_start_indexes)
     list_trial = list(range(len(df[list(df.keys())[0]])))
-    
+
     list_outputs = []
     best_r2 = -1_000_000
     for trial in list_trial:
@@ -85,31 +59,35 @@ if __name__ == '__main__':
             best_metrics = copy.deepcopy(test_metrics)
             best_aux = copy.deepcopy(test_aux)
         list_outputs.append(test_aux['outputs'])
-        
+
         print('-'*10)
         print('Trial ', trial)
         print(test_metrics)
         print('')
-    
+
     outputs = torch.cat(list_outputs, dim=1).mean(dim=1)[:,None]
     labels = test_aux['labels']
-    
+
     metrics = {
         'r2': r2_score(outputs, labels),
         'l1': torch.nn.L1Loss()(outputs, labels),
         'l2': torch.sqrt(torch.nn.MSELoss()(outputs, labels)),
     }
-    
+
+    experiment.log_metrics(metrics)
+
+
     print('-'*30)
     print(f'Metrics from {len(list_trial)}x clips')
     print(metrics)
-    
+
     dict_test_files = {
         'N clips': len(list_trial),
         'metrics xN clips': metrics,
         'best_metrics x1 clip': best_metrics,
         'best_aux x1 clip': best_aux,
     }
-    
+
     with open(opt.path_save_test_files, 'wb') as f:
         pickle.dump(dict_test_files, f)
+
