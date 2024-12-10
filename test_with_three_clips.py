@@ -11,7 +11,7 @@ from coreecho.validation import validate
 
 from comet_ml import Experiment
 
-from .utils import parse_option, set_model
+from utils import parse_option, set_model
 
 def set_test_loader(opt):
     test_ds = EchoNetTest(

@@ -8,7 +8,7 @@ def validate(val_loader, model, regressor, n_clips_per_sample=1):
     model.eval()
     regressor.eval()
     
-    best_r2 = - np.Inf
+    best_bce = np.Inf
     loutputs = []
     for _ in range(n_clips_per_sample):
         list_outputs = []
@@ -51,13 +51,14 @@ def validate(val_loader, model, regressor, n_clips_per_sample=1):
             'r2': r2_score(outputs, labels),
             'l1': torch.nn.L1Loss()(outputs, labels),
             'l2': torch.sqrt(torch.nn.MSELoss()(outputs, labels)),
+            'bce': torch.nn.BCEWithLogitsLoss()(outputs, labels),
         }
         
         for key in dict_list_aux.keys():
             dict_list_aux[key] = [element for innerList in dict_list_aux[key] for element in innerList]
         
-        if metrics['r2'] >= best_r2 or best_r2 == - np.Inf:
-            best_r2 = copy.deepcopy(metrics['r2'])
+        if metrics['bce'] <= best_bce or best_bce == np.Inf:
+            best_bce = copy.deepcopy(metrics['bce'])
             flabels = copy.deepcopy(labels)
             fembeddings = copy.deepcopy(embeddings)
             fdict_list_aux = copy.deepcopy(dict_list_aux)
@@ -67,6 +68,7 @@ def validate(val_loader, model, regressor, n_clips_per_sample=1):
         'r2': r2_score(foutputs, flabels),
         'l1': torch.nn.L1Loss()(foutputs, flabels),
         'l2': torch.sqrt(torch.nn.MSELoss()(foutputs, flabels)),
+        'bce': torch.nn.BCEWithLogitsLoss()(foutputs, flabels),
     }
     
     return fmetrics, {'outputs': foutputs, 'labels': flabels, 'embeddings': fembeddings, 'aux': fdict_list_aux}

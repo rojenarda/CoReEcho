@@ -15,6 +15,8 @@ class LabelDifference(nn.Module):
         # output: [bs, bs]
         if self.distance_type == 'l1':
             return torch.abs(labels[:, None, :] - labels[None, :, :]).sum(dim=-1)
+        elif self.distance_type == 'binary':
+            return (labels[:, None, :] != labels[None, :, :].float()).sum(dim=-1)
         else:
             raise ValueError(self.distance_type)
 

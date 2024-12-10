@@ -12,7 +12,7 @@ from coreecho.viz import HelperTSNE, HelperUMAP
 
 from comet_ml import Experiment
 
-from .utils import parse_option, set_model
+from utils import parse_option, set_model
 
 print = logging.info
 def train_lp(train_loader, model, epoch, opt, regressor, optimizer_regressor):
@@ -20,6 +20,7 @@ def train_lp(train_loader, model, epoch, opt, regressor, optimizer_regressor):
     regressor.train()
 
     criterion_mse = torch.nn.L1Loss()
+    criterion_bce = torch.nn.BCEWithLogitsLoss()
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -40,7 +41,7 @@ def train_lp(train_loader, model, epoch, opt, regressor, optimizer_regressor):
             _, features = model(images)
         features = features.detach()
         y_preds = regressor(features)
-        loss_reg = criterion_mse(y_preds, labels)
+        loss_reg = criterion_bce(y_preds, labels)
 
         optimizer_regressor.zero_grad()
         loss_reg.backward()
@@ -62,15 +63,16 @@ def train_lp(train_loader, model, epoch, opt, regressor, optimizer_regressor):
 def main(stage_2_args: dict = None):
     opt = parse_option(stage_2_args, stage=2)
 
-    # Initialize Comet Experiment
-    experiment = Experiment(
+    if opt.comet_api_key:
+        # Initialize Comet Experiment
+        experiment = Experiment(
         api_key=opt.comet_api_key,
-        project_name=opt.project_name,
-    )
+            project_name=opt.project_name,
+        )
 
-    # Set experiment parameters
-    experiment.set_name(opt.model_name)
-    experiment.log_parameters(vars(opt))
+        # Set experiment parameters
+        experiment.set_name(opt.model_name)
+        experiment.log_parameters(vars(opt))
 
 
     # Set seed (for reproducibility)
@@ -99,10 +101,10 @@ def main(stage_2_args: dict = None):
         valid_tsne = HelperTSNE(valid_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
         valid_umap = HelperUMAP(valid_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
 
-        valid_error = valid_metrics['l1']
+        valid_error = valid_metrics['bce']
         is_best = valid_error <= best_error
         best_error = min(valid_error, best_error)
-        print(f"Best MAE: {best_error:.3f}")
+        print(f"Best BCE: {best_error:.3f}")
 
         if is_best:
             torch.save({
@@ -112,21 +114,23 @@ def main(stage_2_args: dict = None):
                 'best_error': best_error,
             }, save_file_best)
 
-
-        experiment.log_metric("epoch", epoch)
-        experiment.log_metric("learning_rate", lr_cur_val)
-        experiment.log_metric("Val R2", valid_metrics['r2'].item())
-        experiment.log_metric("Val L2", valid_metrics['l2'].item())
-        experiment.log_metric("Val L1", valid_metrics['l1'].item())
-        for key, val in valid_aux['aux'].items():
-            experiment.log_figure(f"Val UMAP ({key})", valid_umap(val))
-            experiment.log_figure(f"Val TSNE ({key})", valid_tsne(val))
+        if opt.comet_api_key:
+            experiment.log_metric("epoch", epoch)
+            experiment.log_metric("learning_rate", lr_cur_val)
+            experiment.log_metric("Val R2", valid_metrics['r2'].item())
+            experiment.log_metric("Val L2", valid_metrics['l2'].item())
+            experiment.log_metric("Val L1", valid_metrics['l1'].item())
+            experiment.log_metric("Val BCE", valid_metrics['bce'].item())
+            for key, val in valid_aux['aux'].items():
+                experiment.log_figure(f"Val UMAP ({key})", valid_umap(val))
+                experiment.log_figure(f"Val TSNE ({key})", valid_tsne(val))
 
 
         save_file = os.path.join(opt.save_folder, 'last.pth')
         save_model(model, regressor, opt, epoch, save_file)
 
-    experiment.end()
+    if opt.comet_api_key:
+        experiment.end()
 
     print("=" * 120)
     print("Test best model on test set...")
@@ -135,11 +139,12 @@ def main(stage_2_args: dict = None):
     regressor.load_state_dict(checkpoint['regressor'])
     print(f"Loaded best model, epoch {checkpoint['epoch']}, best val error {checkpoint['best_error']:.3f}")
 
-    set_seed(opt.trial)
-    test_metrics, test_aux = validate(test_loader, model, regressor, opt.val_n_clips_per_sample)
-    print('Test R2: {:.3f}'.format(test_metrics['r2']))
-    print('Test L2: {:.3f}'.format(test_metrics['l2']))
-    print('Test L1: {:.3f}'.format(test_metrics['l1']))
+    # set_seed(opt.trial)
+    # test_metrics, test_aux = validate(test_loader, model, regressor, opt.val_n_clips_per_sample)
+    # print('Test R2: {:.3f}'.format(test_metrics['r2']))
+    # print('Test L2: {:.3f}'.format(test_metrics['l2']))
+    # print('Test L1: {:.3f}'.format(test_metrics['l1']))
+    # print('Test BCE: {:.3f}'.format(test_metrics['bce']))
 
     set_seed(opt.trial)
     val_metrics, val_aux = validate(val_loader, model, regressor, opt.val_n_clips_per_sample)
@@ -147,11 +152,11 @@ def main(stage_2_args: dict = None):
     print('Val L2: {:.3f}'.format(val_metrics['l2']))
     print('Val L1: {:.3f}'.format(val_metrics['l1']))
 
-    set_seed(opt.trial)
-    train_metrics, train_aux = validate(train_no_aug_loader, model, regressor)
-    print('Train R2: {:.3f}'.format(train_metrics['r2']))
-    print('Train L2: {:.3f}'.format(train_metrics['l2']))
-    print('Train L1: {:.3f}'.format(train_metrics['l1']))
+    # set_seed(opt.trial)
+    # train_metrics, train_aux = validate(train_no_aug_loader, model, regressor)
+    # print('Train R2: {:.3f}'.format(train_metrics['r2']))
+    # print('Train L2: {:.3f}'.format(train_metrics['l2']))
+    # print('Train L1: {:.3f}'.format(train_metrics['l1']))
 
     return save_file_best
 

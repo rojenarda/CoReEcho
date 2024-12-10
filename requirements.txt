@@ -14,7 +14,6 @@ opencv_contrib_python==4.4.0.46
 seaborn==0.13.0
 timm==0.6.12
 torcheval==0.0.7
-wandb==0.15.4
 lightning_utilities==0.9.0
 umap_learn==0.5.4
 plotly

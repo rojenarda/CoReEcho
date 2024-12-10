@@ -50,8 +50,6 @@ The following is the bash script for the first training stage. Download the UniF
 python train_first_stage.py \
     --data_folder $echonet_dynamic_data_dir \
     --pretrained_weight $path_to_pretrained_uniformer_weights \
-    --wandb \
-    --wandb_project_name $wandb_project_name \
     --model uniformer_small \
     --num_workers 8 \
     --batch_size 16 \
@@ -73,8 +71,6 @@ The following is the bash script for the second training stage.
 python train_second_stage.py \
     --data_folder $echonet_dynamic_data_dir \
     --pretrained_weights $path_to_best_ckpt_from_first_stage \
-    --wandb \
-    --wandb_project_name $wandb_project_name \
     --model uniformer_small \
     --num_workers 8 \
     --batch_size 16 \

@@ -44,9 +44,9 @@ class EchoNet(torchvision.datasets.VisionDataset):
         self.frames_list = collections.defaultdict(list)
         self.trace = collections.defaultdict(_defaultdict_of_lists)
         
-        self.read_volumetracings()
+        # self.read_volumetracings()
         
-        self.filter_videos()
+        # self.filter_videos()
         
         print("{} dataset size: {}".format(split, len(self.vnames)))
     

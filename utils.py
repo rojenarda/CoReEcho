@@ -41,7 +41,7 @@ def parse_option(custom_args=None, stage: int = 1):
     parser.add_argument('--model', type=str, default='uniformer_small', choices=['uniformer_small'])
     parser.add_argument('--aug', action='store_true', help='whether to use augmentations')
     parser.add_argument('--temp', type=float, default=2, help='temperature')
-    parser.add_argument('--label_diff', type=str, default='l1', choices=['l1'], help='label distance function')
+    parser.add_argument('--label_diff', type=str, default='l1', choices=['l1', 'binary'], help='label distance function')
     parser.add_argument('--feature_sim', type=str, default='l2', choices=['l2'], help='feature similarity function')
     parser.add_argument('--frames', type=int)
     parser.add_argument('--frequency', type=int)
