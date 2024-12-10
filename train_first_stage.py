@@ -4,7 +4,6 @@ import sys
 import logging
 import torch
 import time
-import wandb
 
 from coreecho import get_feature_extractor
 from coreecho.dataloader import set_loader
@@ -56,10 +55,7 @@ def parse_option():
     parser.add_argument('--frames', type=int)
     parser.add_argument('--frequency', type=int)
     parser.add_argument('--pretrained_weights', type=str, default=None)
-    
-    parser.add_argument('--wandb', action='store_true')
-    parser.add_argument('--wandb_project_name', type=str, default='echonet-ef')
-    
+        
     opt = parser.parse_args()
     
     opt.optim = 'adamw'
@@ -118,7 +114,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, regressor, opti
     model.train()
     regressor.train()
     
-    criterion_mse = torch.nn.L1Loss()
+    criterion_bce = torch.nn.BCEWithLogitsLoss()
     
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -150,7 +146,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, regressor, opti
         
         features = features.detach()
         y_preds = regressor(torch.cat((features[:,0], features[:,1]), dim=0))
-        loss_reg = criterion_mse(y_preds, labels.repeat(2, 1))
+        loss_reg = criterion_bce(y_preds, labels.repeat(2, 1))
         
         optimizer_regressor.zero_grad()
         loss_reg.backward()
@@ -172,16 +168,7 @@ def train(train_loader, model, criterion, optimizer, epoch, opt, regressor, opti
 
 def main():
     opt = parse_option()
-    
-    # set wandb
-    if opt.wandb:
-        wandb.login()
-        wandb.init(
-            name=opt.model_name,
-            project=opt.wandb_project_name,
-            config={key: val for key, val in opt.__dict__.items()},
-        )
-    
+
     # Set seed (for reproducibility)
     set_seed(opt.trial)
     
@@ -206,9 +193,7 @@ def main():
         
         train(train_loader, model, criterion, optimizer, epoch, opt, regressor, optimizer_regressor)
         
-        valid_metrics, valid_aux  = validate(val_loader, model, regressor, opt.val_n_clips_per_sample)
-        valid_tsne = HelperTSNE(valid_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
-        valid_umap = HelperUMAP(valid_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
+        valid_metrics, valid_aux  = validate(val_loader, model, regressor, opt.val_n_clips_per_sample) # TODO: Update validate function
         
         valid_error = valid_metrics['l1']
         is_best = valid_error <= best_error
@@ -222,19 +207,6 @@ def main():
                 'regressor': regressor.state_dict(),
                 'best_error': best_error,
             }, save_file_best)
-        
-        dict_repr = {
-            'epoch': epoch,
-            'lr': lr_cur_val,
-            'Val R2': valid_metrics['r2'].item(),
-            'Val L2': valid_metrics['l2'].item(),
-            'Val L1': valid_metrics['l1'].item(),
-            **{f'Val UMAP ({key})': valid_umap(val) for key, val in valid_aux['aux'].items()},
-            **{f'Val TSNE ({key})': valid_tsne(val) for key, val in valid_aux['aux'].items()},
-        }
-        
-        if opt.wandb:
-            wandb.log(dict_repr)
         
         save_file = os.path.join(opt.save_folder, 'last.pth')
         save_model(model, regressor, opt, epoch, save_file, best_error)
@@ -264,35 +236,7 @@ def main():
     print('Train L2: {:.3f}'.format(train_metrics['l2']))
     print('Train L1: {:.3f}'.format(train_metrics['l1']))
     
-    train_tsne = HelperTSNE(train_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
-    train_umap = HelperUMAP(train_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
-    
-    val_tsne = HelperTSNE(val_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
-    val_umap = HelperUMAP(val_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
-    
-    test_tsne = HelperTSNE(test_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
-    test_umap = HelperUMAP(test_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
-    
-    dict_repr = {
-        '(Best) Train R2': train_metrics['r2'].item(),
-        '(Best) Train L2': train_metrics['l2'].item(),
-        '(Best) Train L1': train_metrics['l1'].item(),
-        '(Best) Val R2': val_metrics['r2'].item(),
-        '(Best) Val L2': val_metrics['l2'].item(),
-        '(Best) Val L1': val_metrics['l1'].item(),
-        '(Best) Test R2': test_metrics['r2'].item(),
-        '(Best) Test L2': test_metrics['l2'].item(),
-        '(Best) Test L1': test_metrics['l1'].item(),
-        **{f'(Best) Train UMAP ({key})': train_umap(val) for key, val in train_aux['aux'].items()},
-        **{f'(Best) Val UMAP ({key})': val_umap(val) for key, val in val_aux['aux'].items()},
-        **{f'(Best) Test UMAP ({key})': test_umap(val) for key, val in test_aux['aux'].items()},
-        **{f'(Best) Train TSNE ({key})': train_tsne(val) for key, val in train_aux['aux'].items()},
-        **{f'(Best) Val TSNE ({key})': val_tsne(val) for key, val in val_aux['aux'].items()},
-        **{f'(Best) Test TSNE ({key})': test_tsne(val) for key, val in test_aux['aux'].items()},
-    }
-    
-    if opt.wandb:
-        wandb.log(dict_repr)
+
 
 if __name__ == '__main__':
     main()
