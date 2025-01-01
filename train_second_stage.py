@@ -98,8 +98,8 @@ def main(stage_2_args: dict = None):
         train_lp(train_loader, model, epoch, opt, regressor, optimizer_regressor)
 
         valid_metrics, valid_aux  = validate(val_loader, model, regressor, opt.val_n_clips_per_sample)
-        valid_tsne = HelperTSNE(valid_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
-        valid_umap = HelperUMAP(valid_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
+        # valid_tsne = HelperTSNE(valid_aux['embeddings'], n_components=2, perplexity=5, random_state=7)
+        # valid_umap = HelperUMAP(valid_aux['embeddings'], n_components=2, n_neighbors=5, init='random', random_state=0)
 
         valid_error = valid_metrics['bce']
         is_best = valid_error <= best_error
@@ -121,9 +121,9 @@ def main(stage_2_args: dict = None):
             experiment.log_metric("Val L2", valid_metrics['l2'].item())
             experiment.log_metric("Val L1", valid_metrics['l1'].item())
             experiment.log_metric("Val BCE", valid_metrics['bce'].item())
-            for key, val in valid_aux['aux'].items():
-                experiment.log_figure(f"Val UMAP ({key})", valid_umap(val))
-                experiment.log_figure(f"Val TSNE ({key})", valid_tsne(val))
+            # for key, val in valid_aux['aux'].items():
+            #     experiment.log_figure(f"Val UMAP ({key})", valid_umap(val))
+            #     experiment.log_figure(f"Val TSNE ({key})", valid_tsne(val))
 
 
         save_file = os.path.join(opt.save_folder, 'last.pth')
